@@ -1,0 +1,15 @@
+{
+    "domain": "b_route_meter",
+    "name": "B-Route Smart Meter",
+    "version": "1.0.0",
+    "documentation": "TODO",
+    "requirements": [
+        "pyserial==3.5",
+        "python-dateutil==2.8.2"
+    ],
+    "config_flow": true,
+    "codeowners": [
+        "@yufeikang"
+    ],
+    "iot_class": "local_polling"
+}
