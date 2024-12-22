@@ -16,10 +16,10 @@ A custom integration for Home Assistant that reads data from Japanese smart mete
 
 ## Requirements
 
-- Home Assistant 2023.x or higher
-- Smart meter with B-route support
-- B-route authentication ID and password
+- Smart meter with B-route support. (In Japan, TEPCO and Chubu Electric Power are known to support B-route)
+- B-route authentication ID and password. Apply from your power company. example: [TEPCO](https://www.tepco.co.jp/pg/consignment/liberalization/smartmeter-broute.html)
 - USB to Wi-SUN adapter
+  - e.g. [BP35A1](https://www.rohm.co.jp/products/wireless-communication/specified-low-power-radio-modules/bp35a1-product) tested.
 
 ## Installation
 

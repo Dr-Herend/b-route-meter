@@ -16,10 +16,9 @@
 
 ## 安装要求
 
-- Home Assistant 2023.x 或更高版本
-- 支持 B-route 的智能电表
-- B-route 认证 ID 和密码
-- USB 转 Wi-SUN 适配器
+- 支持 B-route 的智能电表,例如东京电力和中部电力
+- B-route 认证 ID 和密码,请向您的电力公司申请。例如: [东京电力](https://www.tepco.co.jp/pg/consignment/liberalization/smartmeter-broute.html)
+- USB 转 Wi-SUN 适配器,例如 [BP35A1](https://www.rohm.co.jp/products/wireless-communication/specified-low-power-radio-modules/bp35a1-product)
 
 ## 安装方法
 
