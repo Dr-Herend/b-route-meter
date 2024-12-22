@@ -2,11 +2,9 @@
 Config Flow for B-Route Meter
 Bルートメーターのコンフィグフロー
 
-English:
 This implements the UI wizard to let user input B-route ID, password, 
 and serial port in Home Assistant's "Integrations" page.
 
-日本語:
 Home Assistant の「統合」ページでユーザーが BルートID、パスワード、
 シリアルポートなどを入力できるウィザードを実装します。
 """
@@ -94,5 +92,4 @@ class BRouteOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         # If you want to allow user to update route_b_pwd etc, do so here
-        # ユーザーがroute_b_pwdなどを変更したい場合、ここに実装する
-        return self.async_abort(reason="not_implemented")
+        return self.async_show_form(step_id="user", data_schema=STEP_USER_DATA_SCHEMA)

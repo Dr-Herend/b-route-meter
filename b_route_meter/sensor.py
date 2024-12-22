@@ -220,6 +220,8 @@ class BRouteSensorEntity(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "b_route_meter_device")},
             "name": "B-Route Smart Meter",
+            "manufacturer": "ROHM Co., Ltd.",
+            "model": "BP35A1",
         }
 
     async def async_added_to_hass(self):
