@@ -10,17 +10,39 @@
                     "serial_port": "シリアルポート",
                     "retry_count": "再試行回数"
                 },
-                "route_b_id_description": "Bルート認証IDのお申込み時に発行される英数字32桁の認証IDです",
-                "route_b_pwd_description": "Bルート認証IDのお申込み時に発行される英数字12桁のパスワードです",
-                "serial_port_description": "USBドングルのシリアルポート（Linuxの場合は/dev/ttyUSB0、Windowsの場合はCOM3など）",
-                "retry_count_description": "通信エラー時の再試行回数（1-10）"
+                "data_description": {
+                    "route_b_id": "Bルート認証IDのお申込み時に発行される英数字32桁の認証IDです",
+                    "route_b_pwd": "Bルート認証IDのお申込み時に発行される英数字12桁のパスワードです",
+                    "serial_port": "USBドングルのシリアルポート（Linuxの場合は/dev/ttyUSB0、Windowsの場合はCOM3など）",
+                    "retry_count": "通信エラー時の再試行回数（1-10）"
+                }
             }
         },
         "error": {
-            "invalid_retry_count": "再試行回数は1から10の間の整数を入力してください",
+            "invalid_retry_count": "1から10の間の数字を入力してください",
             "cannot_connect": "接続に失敗しました",
             "invalid_auth": "認証に失敗しました",
             "unknown": "予期せぬエラーが発生しました"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Bルートメーター設定",
+                "description": "Bルートメーターの設定を更新します",
+                "data": {
+                    "route_b_id": "Bルート認証ID",
+                    "route_b_pwd": "Bルートパスワード",
+                    "serial_port": "シリアルポート",
+                    "retry_count": "再試行回数"
+                },
+                "data_description": {
+                    "route_b_id": "Bルート認証IDのお申込み時に発行される英数字32桁の認証IDです",
+                    "route_b_pwd": "Bルート認証IDのお申込み時に発行される英数字12桁のパスワードです",
+                    "serial_port": "USBドングルのシリアルポート（Linuxの場合は/dev/ttyUSB0、Windowsの場合はCOM3など）",
+                    "retry_count": "通信エラー時の再試行回数（1-10）"
+                }
+            }
         }
     }
 }

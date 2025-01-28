@@ -26,29 +26,13 @@ from .const import (
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(
-            CONF_ROUTE_B_ID,
-            description={
-                "suggested_value": "00000000000000000000",
-                "description": "step_user.route_b_id_description",
-            },
+            CONF_ROUTE_B_ID, description={"suggested_value": "00000000000000000000"}
         ): str,
         vol.Required(
-            CONF_ROUTE_B_PWD,
-            description={
-                "suggested_value": "YYYY00000000",
-                "description": "step_user.route_b_pwd_description",
-            },
+            CONF_ROUTE_B_PWD, description={"suggested_value": "YYYY00000000"}
         ): str,
-        vol.Optional(
-            CONF_SERIAL_PORT,
-            default=DEFAULT_SERIAL_PORT,
-            description={"description": "step_user.serial_port_description"},
-        ): str,
-        vol.Optional(
-            CONF_RETRY_COUNT,
-            default=str(DEFAULT_RETRY_COUNT),
-            description={"description": "step_user.retry_count_description"},
-        ): str,
+        vol.Optional(CONF_SERIAL_PORT, default=DEFAULT_SERIAL_PORT): str,
+        vol.Optional(CONF_RETRY_COUNT, default=str(DEFAULT_RETRY_COUNT)): str,
     }
 )
 
@@ -112,22 +96,29 @@ class BRouteOptionsFlow(config_entries.OptionsFlow):
     設定後に変更を許可したい場合のオプションフロー
     """
 
-    def __init__(self, config_entry):
-        """Initialize options flow."""
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None) -> FlowResult:
-        """Manage the options."""
         errors = {}
 
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            try:
+                retry_count = int(user_input[CONF_RETRY_COUNT])
+                if not 1 <= retry_count <= 10:
+                    errors[CONF_RETRY_COUNT] = "invalid_retry_count"
+                else:
+                    user_input[CONF_RETRY_COUNT] = retry_count
+            except ValueError:
+                errors[CONF_RETRY_COUNT] = "invalid_retry_count"
+
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
 
         options_schema = vol.Schema(
             {
                 vol.Required(
-                    CONF_ROUTE_B_ID,
-                    default=self.config_entry.data.get(CONF_ROUTE_B_ID),
+                    CONF_ROUTE_B_ID, default=self.config_entry.data.get(CONF_ROUTE_B_ID)
                 ): str,
                 vol.Required(
                     CONF_ROUTE_B_PWD,
@@ -141,15 +132,15 @@ class BRouteOptionsFlow(config_entries.OptionsFlow):
                 ): str,
                 vol.Optional(
                     CONF_RETRY_COUNT,
-                    default=self.config_entry.data.get(
-                        CONF_RETRY_COUNT, DEFAULT_RETRY_COUNT
+                    default=str(
+                        self.config_entry.data.get(
+                            CONF_RETRY_COUNT, DEFAULT_RETRY_COUNT
+                        )
                     ),
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
+                ): str,
             }
         )
 
         return self.async_show_form(
-            step_id="init",
-            data_schema=options_schema,
-            errors=errors,
+            step_id="init", data_schema=options_schema, errors=errors
         )
