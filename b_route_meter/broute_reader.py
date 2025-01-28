@@ -180,6 +180,7 @@ class BRouteReader:
             + frame
             + b"\r\n"
         )
+        _LOGGER.debug("Sending command: %s", cmd_str.hex())
         self.serial_port.write(cmd_str)
 
         e7_power = None
@@ -189,23 +190,47 @@ class BRouteReader:
         eb_val = None
 
         # We'll read up to ~10 lines to look for ERXUDP
-        # 10行程度を最大読み込み
+        complete_response = b""
         for _ in range(10):
             raw_line = self.serial_port.readline()
+            _LOGGER.debug("Raw serial data: %s", raw_line)
+
             if not raw_line:
                 continue
 
             if raw_line.startswith(b"ERXUDP"):
-                # Typically: ERXUDP <...> <ECHONET payload>
-                tokens = raw_line.split(b" ", 8)
+                # 清除之前的不完整响应
+                complete_response = raw_line
+            elif complete_response:
+                # 如果已经开始接收响应，继续累积数据
+                complete_response += raw_line
+
+            if complete_response and b"\r\n" in complete_response:
+                # 完整的响应已接收
+                tokens = complete_response.split(b" ", 8)
+                _LOGGER.debug("ERXUDP tokens: %s", tokens)
+
                 if len(tokens) < 9:
-                    _LOGGER.warning("ERXUDP line format unexpected.")
+                    _LOGGER.warning(
+                        "ERXUDP line format unexpected: %s", complete_response
+                    )
                     continue
 
                 echonet_payload = tokens[8].rstrip(b"\r\n")
+                _LOGGER.debug("ECHONET payload: %s", echonet_payload.hex())
+
                 frame_info = self._parse_echonet_frame(echonet_payload)
+                _LOGGER.debug("Parsed frame info: %s", frame_info)
+
                 # parse properties
                 for epc, pdc, edt in frame_info.get("properties", []):
+                    _LOGGER.debug(
+                        "Processing EPC: %02X, PDC: %d, EDT: %s",
+                        epc,
+                        pdc,
+                        edt.hex() if edt else "None",
+                    )
+
                     if epc == 0xE7 and pdc == 4:
                         # E7: instantaneous power (W)
                         val = int.from_bytes(edt, byteorder="big", signed=False)
@@ -285,7 +310,7 @@ class BRouteReader:
                         else:
                             eb_val = accum_val
 
-                # after parsing properties, we can break
+                # 找到完整响应后退出循环
                 break
 
         results = {
@@ -295,6 +320,23 @@ class BRouteReader:
             "ea_forward": ea_val,
             "eb_reverse": eb_val,
         }
+
+        if ea_val is not None:
+            try:
+                dt_jst = datetime(year, month, day, hour, minute, second, tzinfo=JST)
+                dt_utc = dt_jst.astimezone(UTC)
+                results["ea_forward_timestamp"] = dt_utc.isoformat()
+            except ValueError:
+                pass
+
+        if eb_val is not None:
+            try:
+                dt_jst = datetime(year, month, day, hour, minute, second, tzinfo=JST)
+                dt_utc = dt_jst.astimezone(UTC)
+                results["eb_reverse_timestamp"] = dt_utc.isoformat()
+            except ValueError:
+                pass
+
         _LOGGER.debug("B-route read results: %s", results)
         return results
 
@@ -363,39 +405,87 @@ class BRouteReader:
         """
         Parse ECHONET Lite frame
         ECHONET Liteフレームを解析
-
-        Return a dict: { EHD, TID, SEOJ, DEOJ, ESV, OPC, properties=[(EPC,PDC,EDT),...] }
         """
         result = {}
         if len(echonet_bytes) < 12:
+            _LOGGER.warning("ECHONET frame too short: %s", echonet_bytes.hex())
             return result
 
-        EHD = echonet_bytes[0:2]
-        TID = echonet_bytes[2:4]
-        SEOJ = echonet_bytes[4:7]
-        DEOJ = echonet_bytes[7:10]
-        ESV = echonet_bytes[10]
-        OPC = echonet_bytes[11]
+        try:
+            EHD = echonet_bytes[0:2]
+            TID = echonet_bytes[2:4]
+            SEOJ = echonet_bytes[4:7]
+            DEOJ = echonet_bytes[7:10]
+            ESV = echonet_bytes[10]
+            OPC = echonet_bytes[11]
 
-        result["EHD"] = EHD
-        result["TID"] = TID
-        result["SEOJ"] = SEOJ
-        result["DEOJ"] = DEOJ
-        result["ESV"] = ESV
-        result["OPC"] = OPC
-        result["properties"] = []
+            result["EHD"] = EHD
+            result["TID"] = TID
+            result["SEOJ"] = SEOJ
+            result["DEOJ"] = DEOJ
+            result["ESV"] = ESV
+            result["OPC"] = OPC
+            result["properties"] = []
 
-        offset = 12
-        for _ in range(OPC):
-            if offset + 2 > len(echonet_bytes):
-                break
-            EPC = echonet_bytes[offset]
-            PDC = echonet_bytes[offset + 1]
-            offset += 2
-            if offset + PDC > len(echonet_bytes):
-                break
-            EDT = echonet_bytes[offset : offset + PDC]
-            offset += PDC
-            result["properties"].append((EPC, PDC, EDT))
+            # 调试日志
+            _LOGGER.debug(
+                "Frame header: EHD=%s, TID=%s, SEOJ=%s, DEOJ=%s, ESV=%02X, OPC=%d",
+                EHD.hex(),
+                TID.hex(),
+                SEOJ.hex(),
+                DEOJ.hex(),
+                ESV,
+                OPC,
+            )
+
+            offset = 12
+            remaining_bytes = len(echonet_bytes) - offset
+            _LOGGER.debug(
+                "Starting to parse %d properties, %d bytes remaining",
+                OPC,
+                remaining_bytes,
+            )
+
+            for i in range(OPC):
+                if offset + 2 > len(echonet_bytes):
+                    _LOGGER.warning(
+                        "Incomplete property data at index %d: offset=%d, len=%d",
+                        i,
+                        offset,
+                        len(echonet_bytes),
+                    )
+                    break
+
+                EPC = echonet_bytes[offset]
+                PDC = echonet_bytes[offset + 1]
+                offset += 2
+
+                _LOGGER.debug(
+                    "Property %d/%d: EPC=%02X, PDC=%d, offset=%d",
+                    i + 1,
+                    OPC,
+                    EPC,
+                    PDC,
+                    offset,
+                )
+
+                if offset + PDC > len(echonet_bytes):
+                    _LOGGER.warning(
+                        "Incomplete EDT data for EPC %02X: need %d bytes, have %d",
+                        EPC,
+                        PDC,
+                        len(echonet_bytes) - offset,
+                    )
+                    break
+
+                EDT = echonet_bytes[offset : offset + PDC]
+                offset += PDC
+
+                _LOGGER.debug("EDT for EPC %02X: %s", EPC, EDT.hex())
+                result["properties"].append((EPC, PDC, EDT))
+
+        except Exception as e:
+            _LOGGER.error("Error parsing ECHONET frame: %s", str(e))
+            _LOGGER.debug("Problematic frame: %s", echonet_bytes.hex())
 
         return result

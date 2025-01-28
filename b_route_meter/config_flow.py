@@ -1,12 +1,9 @@
 """
 Config Flow for B-Route Meter
-Bルートメーターのコンフィグフロー
 
 This implements the UI wizard to let user input B-route ID, password, 
 and serial port in Home Assistant's "Integrations" page.
 
-Home Assistant の「統合」ページでユーザーが BルートID、パスワード、
-シリアルポートなどを入力できるウィザードを実装します。
 """
 
 import voluptuous as vol
@@ -30,13 +27,28 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(
             CONF_ROUTE_B_ID,
-            description="Get from https://www.tepco.co.jp/pg/consignment/liberalization/smartmeter-broute.html",
+            description={
+                "suggested_value": "00000000000000000000",
+                "description": "step_user.route_b_id_description",
+            },
         ): str,
-        vol.Required(CONF_ROUTE_B_PWD): str,
-        vol.Optional(CONF_SERIAL_PORT, default=DEFAULT_SERIAL_PORT): str,
-        vol.Optional(CONF_RETRY_COUNT, default=DEFAULT_RETRY_COUNT): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=10)
-        ),
+        vol.Required(
+            CONF_ROUTE_B_PWD,
+            description={
+                "suggested_value": "YYYY00000000",
+                "description": "step_user.route_b_pwd_description",
+            },
+        ): str,
+        vol.Optional(
+            CONF_SERIAL_PORT,
+            default=DEFAULT_SERIAL_PORT,
+            description={"description": "step_user.serial_port_description"},
+        ): str,
+        vol.Optional(
+            CONF_RETRY_COUNT,
+            default=str(DEFAULT_RETRY_COUNT),
+            description={"description": "step_user.retry_count_description"},
+        ): str,
     }
 )
 
@@ -101,8 +113,43 @@ class BRouteOptionsFlow(config_entries.OptionsFlow):
     """
 
     def __init__(self, config_entry):
+        """Initialize options flow."""
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input=None):
-        # If you want to allow user to update route_b_pwd etc, do so here
-        return self.async_show_form(step_id="user", data_schema=STEP_USER_DATA_SCHEMA)
+    async def async_step_init(self, user_input=None) -> FlowResult:
+        """Manage the options."""
+        errors = {}
+
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        options_schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_ROUTE_B_ID,
+                    default=self.config_entry.data.get(CONF_ROUTE_B_ID),
+                ): str,
+                vol.Required(
+                    CONF_ROUTE_B_PWD,
+                    default=self.config_entry.data.get(CONF_ROUTE_B_PWD),
+                ): str,
+                vol.Optional(
+                    CONF_SERIAL_PORT,
+                    default=self.config_entry.data.get(
+                        CONF_SERIAL_PORT, DEFAULT_SERIAL_PORT
+                    ),
+                ): str,
+                vol.Optional(
+                    CONF_RETRY_COUNT,
+                    default=self.config_entry.data.get(
+                        CONF_RETRY_COUNT, DEFAULT_RETRY_COUNT
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=options_schema,
+            errors=errors,
+        )

@@ -232,10 +232,9 @@ class BRouteSensorEntity(SensorEntity):
     ):
         self._coordinator = coordinator
         self.entity_description = description
-
-        # Generate a unique_id from the description's key
         self._attr_unique_id = f"b_route_{description.key}"
         self._last_state = None
+        self._last_timestamp = None  # 添加时间戳缓存
 
     @property
     def should_poll(self) -> bool:
@@ -252,6 +251,24 @@ class BRouteSensorEntity(SensorEntity):
         コーディネーターが正常更新していればTrue
         """
         return self._coordinator.last_update_success
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra state attributes."""
+        if self.entity_description.key in ["ea_forward", "eb_reverse"]:
+            data = self._coordinator.data
+            timestamp_key = f"{self.entity_description.key}_timestamp"
+
+            # 如果有新的时间戳，更新缓存
+            if data and timestamp_key in data:
+                self._last_timestamp = data[timestamp_key]
+
+            # 返回缓存的时间戳（如果有）
+            if self._last_timestamp:
+                return {
+                    "last_update": self._last_timestamp,
+                }
+        return {}
 
     @property
     def native_value(self):
