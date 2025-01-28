@@ -10,6 +10,7 @@ DataUpdateCoordinatorを使用して定義します。
 
 """
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import List
@@ -29,13 +30,23 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .broute_reader import BRouteReader
-from .const import DOMAIN
+from .const import (
+    CONF_RETRY_COUNT,
+    CONF_ROUTE_B_ID,
+    CONF_ROUTE_B_PWD,
+    CONF_SERIAL_PORT,
+    DEFAULT_RETRY_COUNT,
+    DEFAULT_SERIAL_PORT,
+    DEFAULT_UPDATE_INTERVAL,
+    DEVICE_MANUFACTURER,
+    DEVICE_MODEL,
+    DEVICE_NAME,
+    DEVICE_UNIQUE_ID,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,16 +110,21 @@ async def async_setup_entry(
     コンフィグエントリからセンサーエンティティをセットアップ
     """
     data = entry.data
-    route_b_id = data["route_b_id"]
-    route_b_pwd = data["route_b_pwd"]
-    serial_port = data.get("serial_port", "/dev/ttyS0")
+    route_b_id = data[CONF_ROUTE_B_ID]
+    route_b_pwd = data[CONF_ROUTE_B_PWD]
+    serial_port = data.get(CONF_SERIAL_PORT, DEFAULT_SERIAL_PORT)
+    retry_count = data.get(CONF_RETRY_COUNT, DEFAULT_RETRY_COUNT)
 
-    # Create a DataUpdateCoordinator to manage periodic fetch
-    coordinator = BRouteDataCoordinator(hass, route_b_id, route_b_pwd, serial_port)
-    # 1回目の読み取りを行う
+    coordinator = BRouteDataCoordinator(
+        hass,
+        route_b_id,
+        route_b_pwd,
+        serial_port,
+        retry_count=retry_count,
+    )
+
     await coordinator.async_config_entry_first_refresh()
 
-    # Create sensor entities for each SensorEntityDescription
     sensors = [
         BRouteSensorEntity(coordinator, description) for description in SENSOR_TYPES
     ]
@@ -128,31 +144,73 @@ class BRouteDataCoordinator(DataUpdateCoordinator):
     BRouteReaderを保持して、get_data()をスレッドプールで実行します。
     """
 
-    def __init__(self, hass, route_b_id, route_b_pwd, serial_port):
+    def __init__(
+        self,
+        hass,
+        route_b_id,
+        route_b_pwd,
+        serial_port,
+        retry_count=DEFAULT_RETRY_COUNT,
+    ):
         super().__init__(
             hass,
             _LOGGER,
-            name="B-Route Meter Coordinator",
-            update_interval=timedelta(seconds=10),  # update every 10s
+            name=DEVICE_NAME,
+            update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
         )
         self.reader = BRouteReader(route_b_id, route_b_pwd, serial_port)
+        self.retry_count = retry_count
+        self._is_connected = False
+        self._connection_lock = asyncio.Lock()
 
-        # Optionally do an initial connect once
-        # 必要に応じて初回接続を実行
-        self.reader.connect()
+    async def _try_connect(self):
+        """尝试连接到设备"""
+        if not self._is_connected:
+            try:
+                await self.hass.async_add_executor_job(self.reader.connect)
+                self._is_connected = True
+                _LOGGER.info("Successfully connected to B-Route meter")
+            except Exception as err:
+                self._is_connected = False
+                _LOGGER.error("Failed to connect to B-Route meter: %s", err)
+                raise
 
     async def _async_update_data(self):
-        """
-        Fetch data from B-route meter
-        Bルートメーターからデータを取得
-        """
-        try:
-            # run get_data in a thread pool so it won't block the event loop
-            # get_dataをスレッドプールで実行してイベントループをブロックしない
-            data = await self.hass.async_add_executor_job(self.reader.get_data)
-            return data
-        except Exception as err:
-            raise UpdateFailed(f"B-Route meter update failed: {err}")
+        """获取数据并支持重试"""
+        async with self._connection_lock:
+            for attempt in range(self.retry_count):
+                try:
+                    # 如果未连接，先尝试连接
+                    if not self._is_connected:
+                        await self._try_connect()
+
+                    # 获取数据
+                    data = await self.hass.async_add_executor_job(self.reader.get_data)
+                    if data is None:
+                        raise UpdateFailed("Received empty data from meter")
+                    return data
+
+                except Exception as err:
+                    self._is_connected = False  # 标记连接状态为断开
+                    last_error = str(err)
+
+                    if attempt + 1 < self.retry_count:
+                        _LOGGER.warning(
+                            "Update attempt %d/%d failed: %s. Retrying...",
+                            attempt + 1,
+                            self.retry_count,
+                            last_error,
+                        )
+                        await asyncio.sleep(2**attempt)  # 指数退避
+                    else:
+                        _LOGGER.error(
+                            "Update failed after %d attempts. Last error: %s",
+                            self.retry_count,
+                            last_error,
+                        )
+                        raise UpdateFailed(
+                            f"Failed after {self.retry_count} attempts: {last_error}"
+                        )
 
 
 class BRouteSensorEntity(SensorEntity):
@@ -214,14 +272,14 @@ class BRouteSensorEntity(SensorEntity):
     @property
     def device_info(self):
         """
-        Optional device info
-        任意のデバイス情報
+        Return device information
+        デバイス情報を返す
         """
         return {
-            "identifiers": {(DOMAIN, "b_route_meter_device")},
-            "name": "B-Route Smart Meter",
-            "manufacturer": "ROHM Co., Ltd.",
-            "model": "BP35A1",
+            "identifiers": {(DOMAIN, DEVICE_UNIQUE_ID)},
+            "name": DEVICE_NAME,
+            "manufacturer": DEVICE_MANUFACTURER,
+            "model": DEVICE_MODEL,
         }
 
     async def async_added_to_hass(self):

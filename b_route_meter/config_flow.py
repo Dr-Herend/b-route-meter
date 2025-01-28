@@ -14,17 +14,29 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN  # We'll define `DOMAIN` in const.py or __init__.py
+from .const import (
+    CONF_RETRY_COUNT,
+    CONF_ROUTE_B_ID,
+    CONF_ROUTE_B_PWD,
+    CONF_SERIAL_PORT,
+    DEFAULT_RETRY_COUNT,
+    DEFAULT_SERIAL_PORT,
+    DEVICE_NAME,
+    DOMAIN,
+)
 
 # We define the user step schema
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(
-            "route_b_id",
+            CONF_ROUTE_B_ID,
             description="Get from https://www.tepco.co.jp/pg/consignment/liberalization/smartmeter-broute.html",
         ): str,
-        vol.Required("route_b_pwd"): str,
-        vol.Optional("serial_port", default="/dev/ttyS0"): str,
+        vol.Required(CONF_ROUTE_B_PWD): str,
+        vol.Optional(CONF_SERIAL_PORT, default=DEFAULT_SERIAL_PORT): str,
+        vol.Optional(CONF_RETRY_COUNT, default=DEFAULT_RETRY_COUNT): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=10)
+        ),
     }
 )
 
@@ -57,13 +69,14 @@ class BRouteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # 必要があればここで接続テストやバリデーションを行う
 
             # For example, we can check if an entry with same B ID already exists
-            unique_id = user_input["route_b_id"]
+            unique_id = user_input[CONF_ROUTE_B_ID]
             await self.async_set_unique_id(unique_id)
             self._abort_if_unique_id_configured()
 
             # If everything is OK, create the entry
             return self.async_create_entry(
-                title=f"B-Route Meter ({unique_id})", data=user_input
+                title=f"{DEVICE_NAME} ({unique_id})",
+                data=user_input,
             )
 
         # Show the form
