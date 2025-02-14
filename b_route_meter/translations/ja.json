@@ -43,6 +43,12 @@
                     "retry_count": "通信エラー時の再試行回数（1-10）"
                 }
             }
+        },
+        "error": {
+            "invalid_retry_count": "1から10の間の数字を入力してください",
+            "cannot_connect": "接続に失敗しました",
+            "invalid_auth": "認証に失敗しました",
+            "unknown": "予期せぬエラーが発生しました"
         }
     }
 }

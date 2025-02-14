@@ -1,87 +1,58 @@
 # broute_reader.py
 
-"""
-BRoute Reader Implementation
-Bルートリーダーの実装
+"""BRoute Reader Implementation.
 
 This module provides a full implementation for scanning the channel,
 PANA authentication, and reading E7/E8/E9/EA/EB from a Japanese smart meter
 via the B-route interface (ECHONET Lite).
 
-このモジュールは、日本のスマートメーター(Bルート)を介して
-ECHONET Lite でチャンネルスキャン、PANA認証、および
-E7/E8/E9/EA/EBのデータ取得を行うための実装例を示します。
 """
 
+from datetime import UTC, datetime, timedelta, timezone
 import logging
-import sys
-import time
-from datetime import datetime
 
 import serial
-from dateutil import tz
+
+from homeassistant.exceptions import (
+    ConfigEntryNotReady,
+    IntegrationError,
+    InvalidStateError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-# JST/UTC timezones
-JST = tz.gettz("Asia/Tokyo")
-UTC = tz.gettz("UTC")
-
-
-class BRouteError(Exception):
-    """
-    Generic error for BRoute operations
-    Bルート関連の一般的なエラー
-    """
-
-    pass
+JST = timezone(timedelta(hours=9), "JST")  # B-route meters only in Japan
 
 
 class BRouteReader:
-    """
-    B-Route Reader for E7/E8/E9/EA/EB
-    BルートでE7/E8/E9/EA/EBを読み取るクラス
-
+    """B-Route Reader for E7/E8/E9/EA/EB.
 
     - This class scans the channel, does PANA authentication in connect(),
       and provides get_data() to read E7/E8/E9/EA/EB from the meter.
-
-
-    - connect()メソッドでチャンネルスキャンとPANA認証を行い、
-      get_data()でメーターからE7/E8/E9/EA/EBを取得します。
     """
 
-    def __init__(self, route_b_id, route_b_pwd, serial_port="/dev/tty.usbserial-120"):
-        """
-        Constructor
-        コンストラクタ
+    def __init__(
+        self, route_b_id, route_b_pwd, serial_port="/dev/tty.usbserial-120"
+    ) -> None:
+        """Initialize the BRouteReader.
 
         :param route_b_id: B-route ID (BルートID)
         :param route_b_pwd: B-route password (Bルートパスワード)
-        :param serial_port: Serial port device path (シリアルポートパス)
+        :param serial_port: Serial port device path (シリアルポートパス).
         """
         self.route_b_id = route_b_id
         self.route_b_pwd = route_b_pwd
         self.serial_port_path = serial_port
 
         self.serial_port = None
-        self.scanRes = {}
+        self.scanRes: dict[str, str] = {}
         self.ipv6Addr = None
 
     def connect(self):
-        """
-        Perform channel scan, PANA authentication, etc.
-        チャンネルスキャン、PANA認証などを実行して接続を確立
-
+        """Perform channel scan, PANA authentication, etc.
 
         Opens the serial port, sets password/ID, scans the channel,
         obtains IPv6 address, does PANA authentication.
-        Raises BRouteError if something fails.
-
-
-        シリアルポートを開き、パスワード/IDを設定してチャンネルをスキャンし、
-        IPv6アドレスを取得した上でPANA認証を行います。
-        失敗した場合は BRouteError を投げます。
         """
         try:
             # 1) Open serial port
@@ -129,45 +100,41 @@ class BRouteReader:
                 if not raw_line:
                     continue
                 if raw_line.startswith(b"EVENT 24"):
-                    raise BRouteError("PANA authentication failed. (EVENT 24)")
-                elif raw_line.startswith(b"EVENT 25"):
+                    self.__handle_error("PANA authentication failed. (EVENT 24)")
+                if raw_line.startswith(b"EVENT 25"):
                     _LOGGER.debug("PANA authentication success. (EVENT 25)")
                     bConnected = True
 
-            _LOGGER.info("B-route connection established successfully.")
+            _LOGGER.info("B-route connection established successfully")
         except Exception as e:
             if self.serial_port:
                 self.serial_port.close()
             _LOGGER.error("Failed to connect B-route: %s", e)
-            raise BRouteError(e)
+            raise ConfigEntryNotReady("Failed to connect B-route") from e
+
+    def __handle_error(self, error):
+        """Handle error."""
+        if self.serial_port:
+            self.serial_port.close()
+        raise ConfigEntryNotReady(error)
 
     def get_data(self):
-        """
-        Read E7/E8/E9/EA/EB data from the meter
-        メーターから E7/E8/E9/EA/EB データを取得
-
+        """Read E7/E8/E9/EA/EB data from the meter.
 
         - Sends a single ECHONET Lite read request (0x62) for
           E7/E8/E9/EA/EB
         - Parses the response from ERXUDP
         - Returns a dict with keys: e7_power, e8_current, e9_voltage, ea_forward, eb_reverse
-
-
-        - 1回の ECHONET Lite 読み取りリクエスト(0x62)を
-          E7/E8/E9/EA/EB に対して送信
-        - ERXUDP の応答を解析
-        - e7_power, e8_current, e9_voltage, ea_forward, eb_reverse をキーとする
-          dictを返します
         """
         if not self.serial_port or not self.ipv6Addr:
-            raise BRouteError("B-route is not connected. Call connect() first.")
+            raise InvalidStateError("B-route is not connected. Call connect() first.")
 
         # Build ECHONET Lite frame to read multiple EPC
         # ESV=0x62=ReadRequest, OPC=5
         epcs = [0xE7, 0xE8, 0xE9, 0xEA, 0xEB]
         frame = b"\x10\x81"  # EHD
         frame += b"\x00\x01"  # TID
-        frame += b"\x05\xFF\x01"  # SEOJ=Controller
+        frame += b"\x05\xff\x01"  # SEOJ=Controller
         frame += b"\x02\x88\x01"  # DEOJ=低圧スマートメーター
         frame += b"\x62"  # ESV=ReadRequest
         frame += b"\x05"  # OPC=5
@@ -273,7 +240,7 @@ class BRouteReader:
                             e9_voltage = (v1 + v2) / 2.0
                         elif pdc == 0:
                             _LOGGER.debug(
-                                "Meter does not support E9 or no voltage data."
+                                "Meter does not support E9 or no voltage data"
                             )
                         else:
                             _LOGGER.debug(
@@ -340,17 +307,9 @@ class BRouteReader:
         _LOGGER.debug("B-route read results: %s", results)
         return results
 
-    # --------------------------------------------------
-    # Below are private helper methods
-    # 以下はプライベートヘルパーメソッド
-    # --------------------------------------------------
-
     def _scan_channel(self):
-        """
-        Scan channel and populate self.scanRes
-        チャンネルスキャンを実施し、self.scanRes に格納
-        """
-        _LOGGER.debug("Scanning channel for Smart Meter...")
+        """Scan channel and populate self.scanRes."""
+        _LOGGER.debug("Scanning channel for Smart Meter")
         scanDuration = 5
 
         while "Channel" not in self.scanRes:
@@ -372,16 +331,15 @@ class BRouteReader:
                         self.scanRes[key] = val
             scanDuration += 1
             if scanDuration > 14 and "Channel" not in self.scanRes:
-                raise BRouteError("Could not find valid channel within scan duration.")
+                raise ConfigEntryNotReady(
+                    "Could not find valid channel within scan duration."
+                )
 
         _LOGGER.debug("Channel found: %s", self.scanRes.get("Channel"))
         _LOGGER.debug("Pan ID found: %s", self.scanRes.get("Pan ID"))
 
     def _wait_ok(self):
-        """
-        Wait until we see 'OK' in a line
-        'OK'が出るまで待機
-        """
+        """Wait until we see 'OK' in a line."""
         empty_count = 0
         max_empty_read = 5
         while True:
@@ -389,23 +347,22 @@ class BRouteReader:
             if not raw_line:
                 empty_count += 1
                 if empty_count >= max_empty_read:
-                    raise BRouteError("wait_ok() timed out / too many empty reads.")
+                    raise IntegrationError(
+                        "wait_ok() timed out / too many empty reads."
+                    )
                 continue
             if raw_line.startswith(b"OK"):
                 break
 
     def _write_cmd(self, cmd_str):
-        """Write command to serial, log debug"""
+        """Write command to serial, log debug."""
         if isinstance(cmd_str, str):
             cmd_str = cmd_str.encode()
         _LOGGER.debug("Write to meter: %s", cmd_str)
         self.serial_port.write(cmd_str)
 
     def _parse_echonet_frame(self, echonet_bytes):
-        """
-        Parse ECHONET Lite frame
-        ECHONET Liteフレームを解析
-        """
+        """Parse ECHONET Lite frame."""
         result = {}
         if len(echonet_bytes) < 12:
             _LOGGER.warning("ECHONET frame too short: %s", echonet_bytes.hex())
@@ -484,7 +441,7 @@ class BRouteReader:
                 _LOGGER.debug("EDT for EPC %02X: %s", EPC, EDT.hex())
                 result["properties"].append((EPC, PDC, EDT))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Error parsing ECHONET frame: %s", str(e))
             _LOGGER.debug("Problematic frame: %s", echonet_bytes.hex())
 
