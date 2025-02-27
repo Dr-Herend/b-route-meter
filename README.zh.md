@@ -1,6 +1,10 @@
 # B-Route 智能电表 Home Assistant 集成组件
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
+
 这是一个用于 Home Assistant 的自定义集成组件,可以通过 B-route 接口读取日本智能电表的数据。
+
+[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kanga333&repository=b-route-meter&category=integration)
 
 ## 功能特点
 
@@ -21,6 +25,14 @@
 - USB 转 Wi-SUN 适配器,例如 [BP35A1](https://www.rohm.co.jp/products/wireless-communication/specified-low-power-radio-modules/bp35a1-product)
 
 ## 安装方法
+
+### 方式一：通过 HACS 安装（推荐）
+
+点击下方按钮通过 HACS 直接安装：
+
+[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kanga333&repository=b-route-meter&category=integration)
+
+### 方式二：手动安装
 
 1. 将 `b_route_meter` 文件夹复制到 Home Assistant 的 `custom_components` 目录下
 2. 重启 Home Assistant
@@ -61,4 +73,3 @@
 
 - [B ルート ID 申请 (TEPCO)](https://www.tepco.co.jp/pg/consignment/liberalization/smartmeter-broute.html)
 - [ECHONET Lite 规格书](https://echonet.jp/spec_g/)
-
