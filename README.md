@@ -1,6 +1,7 @@
 # B-Route Smart Meter Integration for Home Assistant
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
+[![GitHub Release][releases-shield]][releases]
+[![hacs][hacsbadge]][hacs]
 
 A custom integration for Home Assistant that reads data from Japanese smart meters via the B-route interface.
 
@@ -74,3 +75,9 @@ If you experience connection issues:
 
 - [B-route ID Application (TEPCO)](https://www.tepco.co.jp/pg/consignment/liberalization/smartmeter-broute.html)
 - [ECHONET Lite Specification](https://echonet.jp/spec_g/)
+
+***
+[hacs]: https://github.com/custom-components/hacs
+[hacsbadge]: https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/yufeikang/b-route-meter.svg?style=for-the-badge
+[releases]: https://github.com/yufeikang/b-route-meter/releases
