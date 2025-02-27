@@ -1,6 +1,6 @@
 {
-    "name": "B-route meter",
-    "description": "B-route meter",
+    "name": "B-Route Smart Meter",
+    "description": "B-Route Smart Meter Sensor",
     "render_readme": true,
     "domains": [
         "sensor"
