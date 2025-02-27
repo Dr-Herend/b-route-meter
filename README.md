@@ -4,7 +4,7 @@
 
 A custom integration for Home Assistant that reads data from Japanese smart meters via the B-route interface.
 
-[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kanga333&repository=b-route-meter&category=integration)
+[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=yufeikang&repository=b-route-meter&category=integration)
 
 ## Features
 
@@ -31,7 +31,7 @@ A custom integration for Home Assistant that reads data from Japanese smart mete
 
 Click the button below to install directly through HACS:
 
-[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kanga333&repository=b-route-meter&category=integration)
+[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=yufeikang&repository=b-route-meter&category=integration)
 
 ### Option 2: Manual Installation
 

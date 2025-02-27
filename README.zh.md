@@ -4,7 +4,7 @@
 
 这是一个用于 Home Assistant 的自定义集成组件,可以通过 B-route 接口读取日本智能电表的数据。
 
-[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kanga333&repository=b-route-meter&category=integration)
+[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=yufeikang&repository=b-route-meter&category=integration)
 
 ## 功能特点
 
@@ -30,7 +30,7 @@
 
 点击下方按钮通过 HACS 直接安装：
 
-[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kanga333&repository=b-route-meter&category=integration)
+[![Install](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=yufeikang&repository=b-route-meter&category=integration)
 
 ### 方式二：手动安装
 
