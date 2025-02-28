@@ -43,6 +43,11 @@ Click the button below to install directly through HACS:
    - B-route ID (obtained from power company)
    - B-route password
    - Serial port path (default: /dev/ttyS0)
+  
+### Supported adapter
+
+- BP35A1 (tested)
+- BP35C0 (planned)
 
 ## Configuration Parameters
 
