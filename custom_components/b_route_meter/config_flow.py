@@ -1,23 +1,24 @@
 """Config Flow for B-Route Meter.
 
 This implements the UI wizard to let user input B-route ID, password,
-and serial port in Home Assistant's "Integrations" page.
-
+serial port and adapter model in Home Assistant's "Integrations" page.
 """
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.core import callback
 
 from .const import (
+    CONF_MODEL,
     CONF_RETRY_COUNT,
     CONF_ROUTE_B_ID,
     CONF_ROUTE_B_PWD,
     CONF_SERIAL_PORT,
+    DEFAULT_MODEL,
     DEFAULT_RETRY_COUNT,
     DEFAULT_SERIAL_PORT,
     DOMAIN,
+    SUPPORTED_MODELS,
 )
 
 # We define the user step schema
@@ -25,6 +26,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ROUTE_B_ID): str,
         vol.Required(CONF_ROUTE_B_PWD): str,
+        vol.Required(CONF_MODEL, default=DEFAULT_MODEL): vol.In(SUPPORTED_MODELS),
         vol.Optional(CONF_SERIAL_PORT, default=DEFAULT_SERIAL_PORT): str,
         vol.Optional(CONF_RETRY_COUNT, default=str(DEFAULT_RETRY_COUNT)): str,
     }
@@ -66,6 +68,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_ROUTE_B_PWD,
                 default=self.entry.data.get(CONF_ROUTE_B_PWD),
             ): str,
+            vol.Required(
+                CONF_MODEL,
+                default=self.entry.data.get(CONF_MODEL, DEFAULT_MODEL),
+            ): vol.In(SUPPORTED_MODELS),
             vol.Optional(
                 CONF_SERIAL_PORT,
                 default=self.entry.data.get(CONF_SERIAL_PORT, DEFAULT_SERIAL_PORT),
@@ -94,7 +100,7 @@ class BRouteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
-                # 确保 retry_count 是整数
+                # Ensure retry_count is an integer
                 user_input = {
                     **user_input,
                     CONF_RETRY_COUNT: int(user_input[CONF_RETRY_COUNT]),
@@ -127,7 +133,3 @@ class BRouteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> OptionsFlowHandler:
         """Get the options flow."""
         return OptionsFlowHandler(config_entry)
-
-
-class InvalidRetryCount(Exception):
-    """Error to indicate retry count is invalid."""
