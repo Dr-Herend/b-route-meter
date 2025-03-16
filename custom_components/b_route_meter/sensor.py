@@ -351,6 +351,15 @@ class BRouteSensorEntity(SensorEntity):
 
             return attributes
 
+        # 为电流传感器添加R相和T相电流属性
+        if self.entity_description.key == "e8_current":
+            # 添加R相电流值
+            if "r_phase_current" in data and data["r_phase_current"] is not None:
+                attributes["r_phase_current"] = f"{data['r_phase_current']} A"
+            # 添加T相电流值
+            if "t_phase_current" in data and data["t_phase_current"] is not None:
+                attributes["t_phase_current"] = f"{data['t_phase_current']} A"
+
         # Handle attributes for other sensors
         if self.entity_description.key == "e7_power":
             timestamp_key = "power_timestamp"
@@ -382,12 +391,36 @@ class BRouteSensorEntity(SensorEntity):
         if key == "diagnostic_info":
             diagnostic_data = data.get(key)
             if diagnostic_data:
-                # Create a concise status summary
-                connection_status = (
-                    "ONLINE" if diagnostic_data.ipv6_address else "OFFLINE"
-                )
+                # 更智能地判断连接状态 - 检查多个维度
+                is_online = False
 
-                # Add info about connections and neighbors if available
+                # 1. 如果有IPv6地址，直接认为在线
+                if diagnostic_data.ipv6_address:
+                    is_online = True
+
+                # 2. 或者如果有邻居设备，说明连接还存在
+                elif diagnostic_data.neighbor_devices:
+                    is_online = True
+
+                # 3. 如果有TCP连接，也表示连接存在
+                elif diagnostic_data.active_tcp_connections:
+                    is_online = True
+
+                # 最终确定状态
+                connection_status = "ONLINE" if is_online else "OFFLINE"
+
+                # 添加信号强度信息（如果有）
+                if diagnostic_data.rssi is not None:
+                    # 添加信号质量指示
+                    signal_quality = "GOOD"
+                    if diagnostic_data.rssi < -80:
+                        signal_quality = "POOR"
+                    elif diagnostic_data.rssi < -70:
+                        signal_quality = "FAIR"
+
+                    connection_status = f"{connection_status} ({signal_quality} {diagnostic_data.rssi}dBm)"
+
+                # 添加连接和邻居数量信息
                 connection_info = []
                 if diagnostic_data.active_tcp_connections:
                     tcp_count = len(diagnostic_data.active_tcp_connections)
@@ -397,7 +430,7 @@ class BRouteSensorEntity(SensorEntity):
                     neighbor_count = len(diagnostic_data.neighbor_devices)
                     connection_info.append(f"{neighbor_count} NEIGH")
 
-                # Combine status components
+                # 合并状态组件
                 if connection_info:
                     return f"{connection_status} ({', '.join(connection_info)})"
                 return connection_status

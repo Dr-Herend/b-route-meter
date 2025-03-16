@@ -234,6 +234,17 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
                     result["e7_power"] = meter_data.power
                 if meter_data.current is not None:
                     result["e8_current"] = meter_data.current
+                    # 添加单相电流值到结果中
+                    if (
+                        hasattr(meter_data, "r_phase_current")
+                        and meter_data.r_phase_current is not None
+                    ):
+                        result["r_phase_current"] = meter_data.r_phase_current
+                    if (
+                        hasattr(meter_data, "t_phase_current")
+                        and meter_data.t_phase_current is not None
+                    ):
+                        result["t_phase_current"] = meter_data.t_phase_current
                 if meter_data.voltage is not None:
                     result["e9_voltage"] = meter_data.voltage
                 if meter_data.forward is not None:
@@ -254,16 +265,20 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
                     result["eb_reverse_timestamp"] = meter_data.reverse_timestamp
 
                 # 添加新的传感器数据
-                # 操作状态信息
+                # 根据设备特性和支持情况添加数据
+                # 操作状态信息 - 只有当设备明确标记了支持才添加这些传感器
                 if meter_data.has_operational_info:
+                    # 操作状态
                     if meter_data.operation_status is not None:
                         result["operation_status"] = (
                             "ON" if meter_data.operation_status else "OFF"
                         )
+                    # 错误状态
                     if meter_data.error_status is not None:
                         result["error_status"] = (
                             "Error" if meter_data.error_status else "Normal"
                         )
+                    # 设备类型
                     if meter_data.meter_type is not None:
                         result["meter_type"] = meter_data.meter_type
 

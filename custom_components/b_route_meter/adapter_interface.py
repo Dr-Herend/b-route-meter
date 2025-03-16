@@ -57,6 +57,10 @@ class MeterReading:
     forward_timestamp: Optional[str] = None
     reverse_timestamp: Optional[str] = None
 
+    # 相位电流值
+    r_phase_current: Optional[float] = None  # R相电流 (A)
+    t_phase_current: Optional[float] = None  # T相电流 (A)
+
     # 新增ECHONET Lite属性
     operation_status: Optional[bool] = None  # 0x80 - 动作状态 (ON/OFF)
     error_status: Optional[bool] = None  # 0x82 - 错误状态 (Normal/Error)
