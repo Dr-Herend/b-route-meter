@@ -6,6 +6,7 @@ the B-route meter using a DataUpdateCoordinator.
 Also provides a diagnostic sensor that shows device status and network information.
 """
 
+import dataclasses
 import logging
 
 from homeassistant.components.sensor import (
@@ -51,6 +52,7 @@ SENSOR_TYPES: list[SensorEntityDescription] = [
         device_class=SensorDeviceClass.POWER,
         native_unit_of_measurement=UnitOfPower.WATT,
         state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=True,  # 电力基本数据，默认启用
     ),
     SensorEntityDescription(
         key="e8_current",
@@ -59,6 +61,7 @@ SENSOR_TYPES: list[SensorEntityDescription] = [
         device_class=SensorDeviceClass.CURRENT,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=True,  # 电流基本数据，默认启用
     ),
     SensorEntityDescription(
         key="e9_voltage",
@@ -67,6 +70,7 @@ SENSOR_TYPES: list[SensorEntityDescription] = [
         device_class=SensorDeviceClass.VOLTAGE,
         native_unit_of_measurement=UnitOfElectricPotential.VOLT,
         state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=True,  # 电压基本数据，默认启用
     ),
     SensorEntityDescription(
         key="ea_forward",
@@ -75,6 +79,7 @@ SENSOR_TYPES: list[SensorEntityDescription] = [
         device_class=SensorDeviceClass.ENERGY,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_registry_enabled_default=True,  # 正向电量基本数据，默认启用
     ),
     SensorEntityDescription(
         key="eb_reverse",
@@ -83,6 +88,69 @@ SENSOR_TYPES: list[SensorEntityDescription] = [
         device_class=SensorDeviceClass.ENERGY,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_registry_enabled_default=True,  # 反向电量基本数据，默认启用
+    ),
+    # 新增的可选传感器
+    SensorEntityDescription(
+        key="operation_status",
+        name="B-Route Operation Status",
+        icon="mdi:power",
+        device_class=SensorDeviceClass.ENUM,
+        options=["ON", "OFF"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # 默认不启用，自动识别
+    ),
+    SensorEntityDescription(
+        key="error_status",
+        name="B-Route Error Status",
+        icon="mdi:alert-circle",
+        device_class=SensorDeviceClass.ENUM,
+        options=["Normal", "Error"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # 默认不启用，自动识别
+    ),
+    SensorEntityDescription(
+        key="current_limit",
+        name="B-Route Current Limit",
+        icon="mdi:current-ac",
+        device_class=SensorDeviceClass.CURRENT,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # 默认不启用，自动识别
+    ),
+    SensorEntityDescription(
+        key="meter_type",
+        name="B-Route Meter Type",
+        icon="mdi:meter-electric",
+        device_class=SensorDeviceClass.ENUM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # 默认不启用，自动识别
+    ),
+    SensorEntityDescription(
+        key="detected_abnormality",
+        name="B-Route Detected Abnormality",
+        icon="mdi:alert",
+        device_class=SensorDeviceClass.ENUM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # 默认不启用，自动识别
+    ),
+    SensorEntityDescription(
+        key="power_unit",
+        name="B-Route Power Unit",
+        icon="mdi:scale",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # 默认不启用，自动识别
+    ),
+    SensorEntityDescription(
+        key="rssi",
+        name="B-Route Signal Strength",
+        icon="mdi:signal",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement="dBm",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # 默认不启用，但诊断信息会包含
     ),
 ]
 
@@ -97,9 +165,89 @@ async def async_setup_entry(
     _LOGGER.debug("Setting up B-Route meter sensor platform")
     await coordinator.async_config_entry_first_refresh()
 
-    sensors = [BRouteSensorEntity(entry, description) for description in SENSOR_TYPES]
+    # 实体列表
+    entities = []
 
-    async_add_entities(sensors)
+    # 初始数据
+    data = coordinator.data
+
+    # 创建所有传感器实体
+    for description in SENSOR_TYPES:
+        # 检查传感器是否应该被启用
+        should_enable = True
+
+        # 如果是高级功能传感器，检查它们是否被支持
+        key = description.key
+
+        # 默认不启用的传感器需要检查支持情况
+        if not description.entity_registry_enabled_default:
+            should_enable = False
+
+            # 检查是否支持该功能
+            if data:
+                # 操作状态相关传感器
+                if key in ["operation_status", "error_status", "meter_type"]:
+                    if (
+                        data.get("operation_status") is not None
+                        or data.get("error_status") is not None
+                        or data.get("meter_type") is not None
+                    ):
+                        _LOGGER.info("Enabling operation status sensor: %s", key)
+                        should_enable = True
+
+                # 限制容量传感器
+                elif key == "current_limit" and data.get("current_limit") is not None:
+                    _LOGGER.info("Enabling current limit sensor")
+                    should_enable = True
+
+                # 异常检测传感器
+                elif (
+                    key == "detected_abnormality"
+                    and data.get("detected_abnormality") is not None
+                ):
+                    _LOGGER.info("Enabling abnormality detection sensor")
+                    should_enable = True
+
+                # 电力单位传感器
+                elif key == "power_unit" and data.get("power_unit") is not None:
+                    _LOGGER.info("Enabling power unit sensor")
+                    should_enable = True
+
+                # RSSI 传感器
+                elif key == "rssi" and data.get("rssi") is not None:
+                    _LOGGER.info("Enabling RSSI sensor")
+                    should_enable = True
+
+                # 基本传感器和诊断传感器总是添加
+                elif key in [
+                    "e7_power",
+                    "e8_current",
+                    "e9_voltage",
+                    "ea_forward",
+                    "eb_reverse",
+                    "diagnostic_info",
+                ]:
+                    should_enable = True
+
+        # 创建传感器并设置 entity_registry_enabled_default
+        sensor = BRouteSensorEntity(entry, description)
+        if should_enable != description.entity_registry_enabled_default:
+            sensor.entity_description = SensorEntityDescription(
+                **{
+                    **dataclasses.asdict(description),
+                    "entity_registry_enabled_default": should_enable,
+                }
+            )
+            _LOGGER.debug(
+                "Modified entity_registry_enabled_default for %s to %s",
+                key,
+                should_enable,
+            )
+
+        entities.append(sensor)
+
+    # 添加所有实体
+    async_add_entities(entities)
 
 
 class BRouteSensorEntity(SensorEntity):
@@ -160,6 +308,9 @@ class BRouteSensorEntity(SensorEntity):
                     attributes["stack_version"] = diagnostic_data.stack_version
                 if diagnostic_data.app_version:
                     attributes["app_version"] = diagnostic_data.app_version
+                # 添加 RSSI 数据
+                if diagnostic_data.rssi is not None:
+                    attributes["rssi"] = f"{diagnostic_data.rssi} dBm"
 
                 # Network configuration
                 if diagnostic_data.channel:

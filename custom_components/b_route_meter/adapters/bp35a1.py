@@ -145,14 +145,15 @@ class BP35A1Adapter(AdapterInterface):
             raise RuntimeError("B-route is not connected. Call connect() first.")
 
         # Build ECHONET Lite frame
-        epcs = [0xE7, 0xE8, 0xE9, 0xEA, 0xEB]
+        # 添加额外的EPC码以获取更多信息
+        epcs = [0xE7, 0xE8, 0xE9, 0xEA, 0xEB, 0x80, 0x82, 0x97, 0x98, 0xD3, 0xD7]
         # 使用更标准的 ECHONET Lite 帧格式
         frame = b"\x10\x81"  # EHD
         frame += b"\x00\x01"  # TID
         frame += b"\x05\xff\x01"  # SEOJ=Controller
         frame += b"\x02\x88\x01"  # DEOJ=低圧スマートメーター
         frame += b"\x62"  # ESV=ReadRequest
-        frame += b"\x05"  # OPC=5
+        frame += bytes([len(epcs)])  # OPC=参数数量
         for epc_code in epcs:
             frame += epc_code.to_bytes(1, "big")  # EPC
             frame += b"\x00"  # PDC=0
@@ -174,6 +175,19 @@ class BP35A1Adapter(AdapterInterface):
         e9_voltage = None
         ea_val = None
         eb_val = None
+
+        # 新属性的初始值
+        operation_status = None
+        error_status = None
+        current_limit = None
+        meter_type = None
+        detected_abnormality = None
+        power_unit = None
+
+        # 功能支持标志
+        has_operational_info = False
+        has_limit_info = False
+        has_abnormality_detection = False
 
         # Read response
         complete_response = b""
@@ -461,6 +475,130 @@ class BP35A1Adapter(AdapterInterface):
                                     _LOGGER.error(
                                         "Error parsing non-standard EB value: %s", e
                                     )
+
+                            # 新增的ECHONET Lite属性解析
+                            elif epc == 0x80 and pdc == 1:  # 动作状态
+                                try:
+                                    operation_status = (
+                                        edt[0] == 0x30
+                                    )  # 0x30=ON, 0x31=OFF
+                                    _LOGGER.debug(
+                                        "Parsed operation status: %s",
+                                        "ON" if operation_status else "OFF",
+                                    )
+                                    has_operational_info = True
+                                except Exception as e:
+                                    _LOGGER.error(
+                                        "Error parsing operation status: %s", e
+                                    )
+
+                            elif epc == 0x82 and pdc == 1:  # 错误状态
+                                try:
+                                    error_status = (
+                                        edt[0] == 0x41
+                                    )  # 0x41=Error, 0x40=Normal
+                                    _LOGGER.debug(
+                                        "Parsed error status: %s",
+                                        "Error" if error_status else "Normal",
+                                    )
+                                    has_operational_info = True
+                                except Exception as e:
+                                    _LOGGER.error("Error parsing error status: %s", e)
+
+                            elif epc == 0x97 and pdc >= 1:  # 当前限制容量
+                                try:
+                                    limit_raw = int.from_bytes(edt, "big", signed=False)
+                                    # 根据规格，单位一般是0.1安培
+                                    current_limit = limit_raw / 10.0
+                                    _LOGGER.debug(
+                                        "Parsed current limit: %s A", current_limit
+                                    )
+                                    has_limit_info = True
+                                except Exception as e:
+                                    _LOGGER.error("Error parsing current limit: %s", e)
+
+                            elif epc == 0x98 and pdc >= 1:  # 电表分类
+                                try:
+                                    meter_code = edt[0]
+                                    meter_type_map = {
+                                        0x30: "Electric energy",
+                                        0x31: "Water flow",
+                                        0x32: "Gas flow",
+                                        0x33: "LP gas flow",
+                                        0x34: "Clock",
+                                        0x35: "Temperature",
+                                        0x36: "Hot water",
+                                        0x37: "Air conditioning",
+                                        0x38: "Ventilation",
+                                        0x39: "Others",
+                                    }
+                                    meter_type = meter_type_map.get(
+                                        meter_code, f"Unknown({meter_code:02X})"
+                                    )
+                                    _LOGGER.debug("Parsed meter type: %s", meter_type)
+                                    has_operational_info = True
+                                except Exception as e:
+                                    _LOGGER.error("Error parsing meter type: %s", e)
+
+                            elif epc == 0xD3 and pdc >= 1:  # 检测到的异常
+                                try:
+                                    abnormality_code = edt[0]
+                                    abnormality_map = {
+                                        0x41: "Error occurred",
+                                        0x42: "No electricity",
+                                        0x43: "Power outage",
+                                        0x44: "Power overload",
+                                        0x45: "Voltage upper limit",
+                                        0x46: "Voltage lower limit",
+                                        0x47: "Current limit",
+                                        0x48: "Leakage",
+                                        0x49: "No gas",
+                                        0x4A: "Gas pressure",
+                                        0x4B: "Gas leakage",
+                                        0x4C: "Emergency",
+                                        0x4D: "Shutter open",
+                                        0x4E: "Failure in communication circuit",
+                                    }
+                                    detected_abnormality = abnormality_map.get(
+                                        abnormality_code,
+                                        f"Unknown({abnormality_code:02X})",
+                                    )
+                                    _LOGGER.debug(
+                                        "Parsed abnormality: %s", detected_abnormality
+                                    )
+                                    has_abnormality_detection = True
+                                except Exception as e:
+                                    _LOGGER.error("Error parsing abnormality: %s", e)
+
+                            elif epc == 0xD7 and pdc >= 1:  # 积算有效电力量单位
+                                try:
+                                    unit_code = edt[0]
+                                    if unit_code == 0x00:
+                                        power_unit = 1.0  # 1kWh
+                                    elif unit_code == 0x01:
+                                        power_unit = 0.1  # 0.1kWh
+                                    elif unit_code == 0x02:
+                                        power_unit = 0.01  # 0.01kWh
+                                    elif unit_code == 0x03:
+                                        power_unit = 0.001  # 0.001kWh
+                                    elif unit_code == 0x04:
+                                        power_unit = 0.0001  # 0.0001kWh
+                                    elif unit_code == 0x0A:
+                                        power_unit = 10.0  # 10kWh
+                                    elif unit_code == 0x0B:
+                                        power_unit = 100.0  # 100kWh
+                                    elif unit_code == 0x0C:
+                                        power_unit = 1000.0  # 1000kWh
+                                    elif unit_code == 0x0D:
+                                        power_unit = 10000.0  # 10000kWh
+                                    else:
+                                        power_unit = 0.1  # 默认0.1kWh
+                                    _LOGGER.debug(
+                                        "Parsed power unit: %s kWh", power_unit
+                                    )
+                                except Exception as e:
+                                    _LOGGER.error("Error parsing power unit: %s", e)
+
                         except Exception as e:
                             _LOGGER.error(
                                 "Error processing property EPC=0x%02X: %s", epc, e
@@ -478,6 +616,19 @@ class BP35A1Adapter(AdapterInterface):
         reading.forward = ea_val
         reading.reverse = eb_val
 
+        # 添加新属性到读数结果
+        reading.operation_status = operation_status
+        reading.error_status = error_status
+        reading.current_limit = current_limit
+        reading.meter_type = meter_type
+        reading.detected_abnormality = detected_abnormality
+        reading.power_unit = power_unit
+
+        # 设置功能支持标志
+        reading.has_operational_info = has_operational_info
+        reading.has_limit_info = has_limit_info
+        reading.has_abnormality_detection = has_abnormality_detection
+
         _LOGGER.debug(
             "Final reading values: power=%s W, current=%s A, voltage=%s V, forward=%s kWh, reverse=%s kWh",
             reading.power,
@@ -486,6 +637,17 @@ class BP35A1Adapter(AdapterInterface):
             reading.forward,
             reading.reverse,
         )
+
+        if has_operational_info or has_limit_info or has_abnormality_detection:
+            _LOGGER.debug(
+                "Additional meter info: operation_status=%s, error_status=%s, current_limit=%s A, meter_type=%s, abnormality=%s, power_unit=%s kWh",
+                reading.operation_status,
+                reading.error_status,
+                reading.current_limit,
+                reading.meter_type,
+                reading.detected_abnormality,
+                reading.power_unit,
+            )
 
         return reading
 
@@ -524,6 +686,34 @@ class BP35A1Adapter(AdapterInterface):
                 break
             elif raw_line.startswith(b"OK"):
                 break
+
+        # 1.1 Get signal strength (RSSI)
+        try:
+            self._write_cmd("SKRSSI\r\n")
+            while True:
+                raw_line = self.serial_port.readline()
+                if not raw_line:
+                    continue
+                if raw_line.startswith(b"ERSSI"):
+                    # ERSSI <RSSI>
+                    try:
+                        rssi_parts = raw_line.decode().split()
+                        if len(rssi_parts) >= 2:
+                            # RSSI值通常是负数，表示为十六进制值，如"8A"表示-74 dBm
+                            rssi_hex = rssi_parts[1]
+                            rssi_value = int(rssi_hex, 16)
+                            # 如果高位为1，表示负数，需要转换
+                            if rssi_value > 127:
+                                rssi_value = rssi_value - 256
+                            info.rssi = rssi_value
+                            _LOGGER.debug("RSSI: %d dBm", rssi_value)
+                    except Exception as e:
+                        _LOGGER.warning("Error parsing RSSI: %s", e)
+                    break
+                elif raw_line.startswith(b"OK"):
+                    break
+        except Exception as e:
+            _LOGGER.warning("Error getting RSSI: %s", e)
 
         # 2. Get version information
         # Get stack version

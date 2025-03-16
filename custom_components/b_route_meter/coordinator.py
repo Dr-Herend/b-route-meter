@@ -127,6 +127,10 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
         if self._diagnostic_info:
             result["diagnostic_info"] = self._diagnostic_info
 
+            # 添加 RSSI 数据作为单独的传感器
+            if self._diagnostic_info.rssi is not None:
+                result["rssi"] = self._diagnostic_info.rssi
+
         # Initialize a counter to track update attempts
         update_attempt = 0
         max_attempts = self.retry_count
@@ -249,6 +253,35 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
                 ):
                     result["eb_reverse_timestamp"] = meter_data.reverse_timestamp
 
+                # 添加新的传感器数据
+                # 操作状态信息
+                if meter_data.has_operational_info:
+                    if meter_data.operation_status is not None:
+                        result["operation_status"] = (
+                            "ON" if meter_data.operation_status else "OFF"
+                        )
+                    if meter_data.error_status is not None:
+                        result["error_status"] = (
+                            "Error" if meter_data.error_status else "Normal"
+                        )
+                    if meter_data.meter_type is not None:
+                        result["meter_type"] = meter_data.meter_type
+
+                # 限制信息
+                if meter_data.has_limit_info and meter_data.current_limit is not None:
+                    result["current_limit"] = meter_data.current_limit
+
+                # 异常检测信息
+                if (
+                    meter_data.has_abnormality_detection
+                    and meter_data.detected_abnormality is not None
+                ):
+                    result["detected_abnormality"] = meter_data.detected_abnormality
+
+                # 电量单位
+                if meter_data.power_unit is not None:
+                    result["power_unit"] = meter_data.power_unit
+
             # If we successfully got any readings, break out of the retry loop
             if success:
                 break
@@ -261,6 +294,10 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
         # Always include diagnostic info if available, even if other readings failed
         if self._diagnostic_info and "diagnostic_info" not in result:
             result["diagnostic_info"] = self._diagnostic_info
+
+            # 添加 RSSI 数据作为单独的传感器
+            if self._diagnostic_info.rssi is not None:
+                result["rssi"] = self._diagnostic_info.rssi
 
         return result
 

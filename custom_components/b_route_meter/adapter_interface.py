@@ -34,11 +34,12 @@ class DiagnosticInfo:
     # Network configuration
     channel: Optional[int] = None  # Current channel number
     pan_id: Optional[str] = None  # Current PAN ID
+    rssi: Optional[int] = None  # Received Signal Strength Indicator (dBm)
 
     # Network status
-    active_tcp_connections: List[
-        Dict[str, str]
-    ] = None  # List of active TCP connections
+    active_tcp_connections: List[Dict[str, str]] = (
+        None  # List of active TCP connections
+    )
     udp_ports: List[int] = None  # List of UDP ports in use
     tcp_ports: List[int] = None  # List of TCP ports in use
     neighbor_devices: List[Dict[str, str]] = None  # List of neighbor devices
@@ -55,6 +56,19 @@ class MeterReading:
     reverse: Optional[float] = None  # kWh
     forward_timestamp: Optional[str] = None
     reverse_timestamp: Optional[str] = None
+
+    # 新增ECHONET Lite属性
+    operation_status: Optional[bool] = None  # 0x80 - 动作状态 (ON/OFF)
+    error_status: Optional[bool] = None  # 0x82 - 错误状态 (Normal/Error)
+    current_limit: Optional[float] = None  # 0x97 - 当前限制容量 (A)
+    meter_type: Optional[str] = None  # 0x98 - 电表分类
+    detected_abnormality: Optional[str] = None  # 0xD3 - 检测到的异常
+    power_unit: Optional[float] = None  # 0xD7 - 积算有效电力量单位 (通常为0.1kWh)
+
+    # 如果任一支持的属性有值，则标记此电表为支持此功能
+    has_operational_info: Optional[bool] = False  # 是否支持操作状态信息
+    has_limit_info: Optional[bool] = False  # 是否支持限制信息
+    has_abnormality_detection: Optional[bool] = False  # 是否支持异常检测
 
 
 class AdapterInterface(ABC):
