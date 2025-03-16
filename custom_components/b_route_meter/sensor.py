@@ -16,6 +16,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    EntityCategory,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
@@ -40,8 +41,8 @@ SENSOR_TYPES: list[SensorEntityDescription] = [
         key="diagnostic_info",
         name="B-Route Diagnostic Info",
         icon="mdi:information",
-        device_class=SensorDeviceClass.ENUM,
-        entity_registry_enabled_default=False,  # 默认禁用，用户需要手动启用
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # Disabled by default, user needs to enable manually
     ),
     SensorEntityDescription(
         key="e7_power",
@@ -138,21 +139,80 @@ class BRouteSensorEntity(SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, str]:
-        """Return extra state attributes."""
+        """Return entity specific state attributes."""
         attributes = {}
+        data = self._coordinator.data
+        timestamp_key = None
 
-        # Add coordinator update status attribute
-        attributes["coordinator_update_success"] = self._coordinator.last_update_success
+        if not data:
+            return attributes
 
-        if self.entity_description.key in ["ea_forward", "eb_reverse"]:
-            data = self._coordinator.data
-            timestamp_key = f"{self.entity_description.key}_timestamp"
+        # Add detailed attributes for diagnostic_info sensor
+        if self.entity_description.key == "diagnostic_info":
+            diagnostic_data = data.get("diagnostic_info")
+            if diagnostic_data:
+                # Device information
+                if diagnostic_data.mac_address:
+                    attributes["mac_address"] = diagnostic_data.mac_address
+                if diagnostic_data.ipv6_address:
+                    attributes["ipv6_address"] = diagnostic_data.ipv6_address
+                if diagnostic_data.stack_version:
+                    attributes["stack_version"] = diagnostic_data.stack_version
+                if diagnostic_data.app_version:
+                    attributes["app_version"] = diagnostic_data.app_version
 
-            if data and timestamp_key in data:
-                self._last_timestamp = data[timestamp_key]
+                # Network configuration
+                if diagnostic_data.channel:
+                    attributes["channel"] = diagnostic_data.channel
+                if diagnostic_data.pan_id:
+                    attributes["pan_id"] = diagnostic_data.pan_id
 
+                # Network status
+                if diagnostic_data.active_tcp_connections:
+                    attributes["tcp_connections_count"] = len(
+                        diagnostic_data.active_tcp_connections
+                    )
+                    # Add details for each TCP connection
+                    for i, conn in enumerate(diagnostic_data.active_tcp_connections):
+                        attributes[f"tcp_connection_{i+1}"] = str(conn)
+
+                if diagnostic_data.udp_ports:
+                    attributes["udp_ports"] = ", ".join(
+                        str(port) for port in diagnostic_data.udp_ports
+                    )
+
+                if diagnostic_data.tcp_ports:
+                    attributes["tcp_ports"] = ", ".join(
+                        str(port) for port in diagnostic_data.tcp_ports
+                    )
+
+                if diagnostic_data.neighbor_devices:
+                    attributes["neighbor_devices_count"] = len(
+                        diagnostic_data.neighbor_devices
+                    )
+                    # Add details for each neighbor device
+                    for i, neighbor in enumerate(diagnostic_data.neighbor_devices):
+                        attributes[f"neighbor_device_{i+1}"] = str(neighbor)
+
+            # Add timestamp if available
             if self._last_timestamp:
                 attributes["last_update"] = self._last_timestamp
+
+            return attributes
+
+        # Handle attributes for other sensors
+        if self.entity_description.key == "e7_power":
+            timestamp_key = "power_timestamp"
+        elif self.entity_description.key == "ea_forward":
+            timestamp_key = "forward_timestamp"
+        elif self.entity_description.key == "eb_reverse":
+            timestamp_key = "reverse_timestamp"
+
+        if data and timestamp_key in data:
+            self._last_timestamp = data[timestamp_key]
+
+        if self._last_timestamp:
+            attributes["last_update"] = self._last_timestamp
 
         return attributes
 
@@ -164,40 +224,33 @@ class BRouteSensorEntity(SensorEntity):
             "Getting value for %s, data: %s", self.entity_description.key, data
         )
         if not data:
-            return None  # 返回None而不是"Unknown"字符串
+            return None  # Return None instead of "Unknown" string
         key = self.entity_description.key
 
         # Special handling for diagnostic info
         if key == "diagnostic_info":
             diagnostic_data = data.get(key)
             if diagnostic_data:
-                # Format diagnostic info in a more concise and readable format
-                info_parts = []
+                # Create a concise status summary
+                connection_status = (
+                    "ONLINE" if diagnostic_data.ipv6_address else "OFFLINE"
+                )
 
-                # Device information part
-                if diagnostic_data.mac_address:
-                    info_parts.append(f"MAC: {diagnostic_data.mac_address}")
-                if diagnostic_data.ipv6_address:
-                    info_parts.append(f"IPv6: {diagnostic_data.ipv6_address}")
-                if diagnostic_data.stack_version:
-                    info_parts.append(f"Firmware: {diagnostic_data.stack_version}")
-                if diagnostic_data.app_version:
-                    info_parts.append(f"App: {diagnostic_data.app_version}")
+                # Add info about connections and neighbors if available
+                connection_info = []
+                if diagnostic_data.active_tcp_connections:
+                    tcp_count = len(diagnostic_data.active_tcp_connections)
+                    connection_info.append(f"{tcp_count} CONN")
 
-                # Network configuration part
-                if diagnostic_data.channel:
-                    info_parts.append(f"Channel: {diagnostic_data.channel}")
-                if diagnostic_data.pan_id:
-                    info_parts.append(f"PAN ID: {diagnostic_data.pan_id}")
+                if diagnostic_data.neighbor_devices:
+                    neighbor_count = len(diagnostic_data.neighbor_devices)
+                    connection_info.append(f"{neighbor_count} NEIGH")
 
-                # Network status part
-                tcp_count = len(diagnostic_data.active_tcp_connections or [])
-                if tcp_count > 0:
-                    info_parts.append(f"TCP Conn: {tcp_count}")
-
-                # Return formatted string
-                return " | ".join(info_parts) if info_parts else "No diagnostic info"
-            return self._last_state or "No diagnostic info"
+                # Combine status components
+                if connection_info:
+                    return f"{connection_status} ({', '.join(connection_info)})"
+                return connection_status
+            return "NO DATA"
 
         # Normal handling for other sensors
         value = data.get(key)
@@ -209,7 +262,7 @@ class BRouteSensorEntity(SensorEntity):
                     "Using last known value for %s: %s", key, self._last_state
                 )
                 return self._last_state
-            # 如果没有上次的有效值，返回None而不是"Unknown"
+            # If no last valid value, return None instead of "Unknown"
             return None
 
         # Save current value as the last valid value for next time
@@ -232,7 +285,7 @@ class BRouteSensorEntity(SensorEntity):
                     return round(numeric_value, 2)
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid numeric value for %s: %s", key, value)
-                return None  # 返回None而不是"Invalid data"字符串
+                return None  # Return None instead of "Invalid data" string
 
         return value
 
