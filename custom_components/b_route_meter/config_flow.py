@@ -59,26 +59,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             except ValueError:
                 errors[CONF_RETRY_COUNT] = "invalid_retry_count"
 
+        all_current = {**self.config_entry.data, **self.config_entry.options}
+
         schema = {
-            vol.Required(
-                CONF_ROUTE_B_ID,
-                default=self.entry.data.get(CONF_ROUTE_B_ID),
-            ): str,
-            vol.Required(
-                CONF_ROUTE_B_PWD,
-                default=self.entry.data.get(CONF_ROUTE_B_PWD),
-            ): str,
-            vol.Required(
-                CONF_MODEL,
-                default=self.entry.data.get(CONF_MODEL, DEFAULT_MODEL),
-            ): vol.In(SUPPORTED_MODELS),
             vol.Optional(
                 CONF_SERIAL_PORT,
-                default=self.entry.data.get(CONF_SERIAL_PORT, DEFAULT_SERIAL_PORT),
+                default=all_current.get(CONF_SERIAL_PORT, DEFAULT_SERIAL_PORT),
             ): str,
             vol.Optional(
                 CONF_RETRY_COUNT,
-                default=str(self.entry.data.get(CONF_RETRY_COUNT, DEFAULT_RETRY_COUNT)),
+                default=str(all_current.get(CONF_RETRY_COUNT, DEFAULT_RETRY_COUNT)),
             ): str,
         }
 
@@ -125,6 +115,32 @@ class BRouteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=STEP_USER_DATA_SCHEMA,
             errors=errors,
         )
+
+    async def async_step_reconfigure(
+        self,
+        user_input: dict[str, str] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Handle reconfiguration of the integration."""
+        if user_input is not None:
+            self.async_set_unique_id(user_input[CONF_ROUTE_B_ID])
+            return self.async_update_reload_and_abort(
+                self._get_reconfigure_entry(),
+                data=user_input,
+            )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=STEP_USER_DATA_SCHEMA,
+        )
+
+    def _get_reconfigure_entry(self) -> config_entries.ConfigEntry:
+        """Get the current config entry."""
+        if self.unique_id is None:
+            return None
+        for entry in self._async_current_entries():
+            if entry.unique_id == self.unique_id:
+                return entry
+        return None
 
     @staticmethod
     @callback
