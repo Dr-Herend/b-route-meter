@@ -11,7 +11,7 @@ class AdapterFactory:
 
     _adapters: dict[str, Type[AdapterInterface]] = {
         "BP35A1": BP35A1Adapter,
-        # "BP35C2":  TODO
+        "BP35C2": BP35C2Adapter,
     }
 
     @classmethod
