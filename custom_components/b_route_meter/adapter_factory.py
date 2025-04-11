@@ -4,7 +4,7 @@ from typing import Type
 
 from .adapter_interface import AdapterInterface
 from .adapters.bp35a1 import BP35A1Adapter
-
+from .adapters.bp35c2 import BP35C2Adapter
 
 class AdapterFactory:
     """Factory class for creating B-route adapters."""
