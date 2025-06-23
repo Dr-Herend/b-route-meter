@@ -100,7 +100,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for platform in PLATFORMS:
             try:
                 _LOGGER.debug("Setting up platform: %s", platform)
-                await hass.config_entries.async_forward_entry_setup(entry, platform)
+                await hass.config_entries.async_forward_entry_setups(entry, platform)
             except Exception as err:
                 _LOGGER.error(
                     "Error setting up %s platform: %s - %s",
