@@ -8,13 +8,33 @@
                     "route_b_id": "B-Route ID",
                     "route_b_pwd": "B-Route Password",
                     "serial_port": "Serial Port",
-                    "retry_count": "Retry Count"
+                    "retry_count": "Retry Count",
+                    "model": "Adapter Model"
                 },
                 "data_description": {
                     "route_b_id": "32-digit authentication ID issued when applying for B-Route service",
                     "route_b_pwd": "12-digit password issued when applying for B-Route service",
                     "serial_port": "USB dongle serial port (e.g., /dev/ttyUSB0 for Linux, COM3 for Windows)",
-                    "retry_count": "Number of retry attempts on communication error (1-10)"
+                    "retry_count": "Number of retry attempts on communication error (1-10)",
+                    "model": "Select your B-Route adapter model (BP35A1 or BP35C2)"
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigure B-Route Meter",
+                "description": "Update your B-Route meter connection settings",
+                "data": {
+                    "route_b_id": "B-Route ID",
+                    "route_b_pwd": "B-Route Password",
+                    "serial_port": "Serial Port",
+                    "retry_count": "Retry Count",
+                    "model": "Adapter Model"
+                },
+                "data_description": {
+                    "route_b_id": "32-digit authentication ID issued when applying for B-Route service",
+                    "route_b_pwd": "12-digit password issued when applying for B-Route service",
+                    "serial_port": "USB dongle serial port (e.g., /dev/ttyUSB0 for Linux, COM3 for Windows)",
+                    "retry_count": "Number of retry attempts on communication error (1-10)",
+                    "model": "Select your B-Route adapter model (BP35A1 or BP35C2)"
                 }
             }
         },
@@ -23,6 +43,10 @@
             "cannot_connect": "Failed to connect",
             "invalid_auth": "Invalid authentication",
             "unknown": "Unexpected error"
+        },
+        "abort": {
+            "already_configured": "Device is already configured",
+            "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
         }
     },
     "options": {
@@ -49,6 +73,49 @@
             "cannot_connect": "Failed to connect",
             "invalid_auth": "Invalid authentication",
             "unknown": "Unexpected error"
+        }
+    },
+    "entity": {
+        "sensor": {
+            "diagnostic_info": {
+                "name": "Diagnostic Info"
+            },
+            "instantaneous_power": {
+                "name": "Instantaneous Power"
+            },
+            "instantaneous_current": {
+                "name": "Instantaneous Current"
+            },
+            "instantaneous_voltage": {
+                "name": "Instantaneous Voltage"
+            },
+            "cumulative_forward": {
+                "name": "Cumulative Forward Energy"
+            },
+            "cumulative_reverse": {
+                "name": "Cumulative Reverse Energy"
+            },
+            "operation_status": {
+                "name": "Operation Status"
+            },
+            "error_status": {
+                "name": "Error Status"
+            },
+            "current_limit": {
+                "name": "Current Limit"
+            },
+            "meter_type": {
+                "name": "Meter Type"
+            },
+            "detected_abnormality": {
+                "name": "Detected Abnormality"
+            },
+            "power_unit": {
+                "name": "Power Unit"
+            },
+            "signal_strength": {
+                "name": "Signal Strength"
+            }
         }
     }
 }

@@ -97,19 +97,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN][entry.entry_id] = coordinator
 
         # Set up platforms with enhanced error handling
-        for platform in PLATFORMS:
-            try:
-                _LOGGER.debug("Setting up platform: %s", platform)
-                await hass.config_entries.async_forward_entry_setups(entry, platform)
-            except Exception as err:
-                _LOGGER.error(
-                    "Error setting up %s platform: %s - %s",
-                    platform,
-                    err,
-                    traceback.format_exc(),
-                )
-                # Continue with other platforms even if one fails
-                continue
+        # 使用异步并发设置，避免阻塞
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
         _LOGGER.info("B-Route meter integration setup completed successfully")
         return True

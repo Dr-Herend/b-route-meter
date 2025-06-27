@@ -53,6 +53,8 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
             _LOGGER,
             name=DEVICE_NAME,
             update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
+            # Reduce timeout for first update, fail fast
+            request_refresh_debouncer=None,
         )
 
         # Create adapter instance for the configured model
@@ -73,9 +75,17 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
         if not self._is_connected:
             _LOGGER.info("Try connecting to B-Route meter")
             try:
-                await self.hass.async_add_executor_job(self.adapter.connect)
+                # Use shorter timeout to avoid blocking setup for too long
+                await asyncio.wait_for(
+                    self.hass.async_add_executor_job(self.adapter.connect),
+                    timeout=30.0,  # 30秒超时，相比默认更短
+                )
                 self._is_connected = True
                 _LOGGER.info("Successfully connected to B-Route meter")
+            except asyncio.TimeoutError:
+                self._is_connected = False
+                _LOGGER.error("Connection to B-Route meter timed out after 30 seconds")
+                raise UpdateFailed("Connection to B-Route meter timed out") from None
             except Exception as err:
                 self._is_connected = False
                 _LOGGER.error("Failed to connect to B-Route meter: %s", err)
@@ -162,7 +172,11 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
                         e,
                         update_attempt,
                     )
-                    await asyncio.sleep(update_attempt)
+                    # 快速失败，减少初始化时间
+                    if update_attempt == 1:
+                        await asyncio.sleep(1)  # 第一次失败只等待1秒
+                    else:
+                        await asyncio.sleep(update_attempt)
                     continue
 
             # Now try to get data from the meter
@@ -189,7 +203,8 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
                                 await self._try_connect()
                         except Exception as e:
                             _LOGGER.error("Failed to reconnect: %s", e)
-                        await asyncio.sleep(update_attempt)
+                        # 减少等待时间
+                        await asyncio.sleep(min(update_attempt, 3))  # 最多等待3秒
                         continue
                     else:
                         _LOGGER.warning(
@@ -202,7 +217,8 @@ class BRouteDataCoordinator(DataUpdateCoordinator[Mapping[str, Any]]):
                 _LOGGER.error("Error fetching data from B-Route meter: %s", e)
                 self._is_connected = False  # 标记为断开连接，下次会尝试重新连接
                 if update_attempt < max_attempts:
-                    await asyncio.sleep(update_attempt)
+                    # 快速失败，减少初始化时间
+                    await asyncio.sleep(min(update_attempt, 3))  # 最多等待3秒
                     continue
                 elif previous_data:
                     # 如果有之前的数据，则使用之前的数据
