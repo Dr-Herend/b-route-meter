@@ -494,16 +494,6 @@ class BRouteSensorEntity(SensorEntity):
 
         return value
 
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information."""
-        return {
-            "identifiers": {(DOMAIN, DEVICE_UNIQUE_ID)},
-            "name": DEVICE_NAME,
-            "manufacturer": DEVICE_MANUFACTURER,
-            "model": DEVICE_MODEL,
-        }
-
     async def async_added_to_hass(self) -> None:
         """Register update listener when entity is added."""
         self._coordinator.async_add_listener(self.async_write_ha_state)
