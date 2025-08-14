@@ -9,6 +9,6 @@
   "loggers": ["b_route_meter"],
   "quality_scale": "bronze",
   "requirements": ["pyserial==3.5"],
-  "version": "0.1.1",
+  "version": "0.1.2",
   "single_config_entry": true
 }
